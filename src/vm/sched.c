@@ -24,6 +24,7 @@
 #include "bgi/sys.h"
 #include "bgi/msg.h"
 #include "bgi/engine.h"
+#include "bgi/gfx/movieplayer.h"
 #include "bgi/input.h"
 #include "bgi/display.h"
 #include "bgi/gfx.h"
@@ -251,6 +252,7 @@ void Vm_FrameServices(void)
 	CursorSprite_Update();
 	Knob_Update();
 	Input_Poll(1, 1);
+	Movie_Pump(); // decode the video frames due now into their bitmaps
 	presented = PresentFrame();
 	Dbg_OverlayPresent(); // the debugger over the picture, when it has no window of its own
 	if(BGI_TRY(f))

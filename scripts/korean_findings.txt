@@ -1,0 +1,17 @@
+sjis_ext chars: 1343
+first30: 아마기코지로나한테무슨원이라도있는거야후우몸의사소돌왔다벌써
+
+=== a000 len=400 2byte codes=49 distinct=41 lead range=0x81..0xFA
+sample codes: 9000 F400 F400 F400 F400 FA00 F700 F700 F700 8C00 F900 F400 8104 8105 8106 8107 8108 810B 810C 810E 810F 8108 8110 8111
+
+=== kojiroh_1207 len=950 2byte codes=40 distinct=37 lead range=0x81..0xF9
+sample codes: AB02 B802 C402 C402 D002 DA02 E402 E803 F202 E803 F600 F300 F700 F900 F400 8138 8307 8205 8D3B 8B1B 8E77 92E8 82B3 82EA
+
+=== kyoutuu_1209 len=953 2byte codes=37 distinct=36 lead range=0x81..0xF9
+sample codes: C302 D002 DC02 E602 F002 E803 9708 F600 F300 F700 F900 F400 8138 8307 8205 8D3B 8B1B 8E77 92E8 82B3 82EA 82BD 8389 8378
+
+=== marina_1203 len=852 2byte codes=48 distinct=45 lead range=0x81..0xFB
+sample codes: 8702 8901 9302 9E01 9302 9F02 A902 B302 E803 C102 CD02 D402 AA00 DC02 E102 DC02 F202 F600 F300 F700 FB02 F900 F400 8314
+
+=== a000 mapped via user-area 0xF040 ===
+BurikoCompiledScriptVer1.00.........eve_r.......................납..........납..........?...............납..............?.......>.......납..............................................@...............뼈......................U...뼈......................L...뼈......................#...?..납..s0340.............. .... .......... .... .......w...........x.................딴......B.a000_END.a000_START.

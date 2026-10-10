@@ -167,6 +167,18 @@ uint32_t GlobalDB_Load(void)
 	db = (uint8_t*)BGI_Alloc(GDB_WORK);
 	n = SdcDecode(db, file);
 	BGI_Free(file);
+	fprintf(stderr, "[DBG] GDB size=%u n=%u sysAreaSize=0x%x\n", size, n, gSysAreaSize);
+
+	/* The 1.616+ builds write a differently sectioned file whose header is
+	 * "BURIKO GDB 3.00" with its own section offsets; this back end
+	 * implements the older fixed layout only, so misreading such a file
+	 * must not happen (a record's bits / dataOffset are then garbage). */
+	if(n >= 16 && memcmp(db, "BURIKO GDB 3.00", 16) == 0)
+	{
+		fprintf(stderr, "[DBG] GDB 3.00 format: not parsed by this loader, reporting no database\n");
+		BGI_Free(db);
+		return 0x80000002u;
+	}
 
 	if(n >= GDB_FLAGDATA)
 	{
@@ -177,13 +189,24 @@ uint32_t GlobalDB_Load(void)
 		rec = (const GdbFlagRec_t*)(db + GDB_FLAGS);
 		for(i = 0; i < GDB_MAXGROUPS; i++, rec++)
 		{
-			if(rec->bits != 0)
+			uint32_t fb;
+			if(rec->bits == 0)
+				continue;
+			fb = FlagBytes(rec->bits);
+			/* a record whose flag bytes would reach past the decoded
+			 * file is a damaged database, not a reason to read out of
+			 * bounds */
+			if(rec->dataOffset > n - GDB_FLAGDATA || fb > n - GDB_FLAGDATA - rec->dataOffset)
 			{
-				FlagMgr_RegisterWithData(gFlagMgr, rec->name, rec->bits, db + GDB_FLAGDATA + rec->dataOffset);
-				dataTotal += FlagBytes(rec->bits);
+				result = 0x80000002u;
+				break;
 			}
+			FlagMgr_RegisterWithData(gFlagMgr, rec->name, rec->bits, db + GDB_FLAGDATA + rec->dataOffset);
+			dataTotal += fb;
 		}
-		if(n == GDB_FLAGDATA + dataTotal)
+		if(result == 0x80000002u)
+			; // damaged
+		else if(n == GDB_FLAGDATA + dataTotal)
 			result = 0;
 	}
 	BGI_Free(db);

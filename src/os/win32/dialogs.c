@@ -27,6 +27,23 @@
 
 int OS_MessageBox(const char* text, const char* caption, uint32_t flags) // MessageBoxW over the main window; the button id pressed
 {
+	/* BGI_MSGBOX_STDERR: for unattended runs (the port's test harness)
+	 * print the box and take its default button instead of opening it. */
+	if(getenv("BGI_MSGBOX_STDERR"))
+	{
+		int def;
+		switch(flags & 0xf)
+		{
+		case OS_MB_OK:         def = OS_IDOK;     break;
+		case OS_MB_OKCANCEL:   def = (flags & OS_MB_DEFBUTTON2) ? OS_IDCANCEL : OS_IDOK; break;
+		case OS_MB_YESNO:      def = (flags & OS_MB_DEFBUTTON2) ? OS_IDNO : OS_IDYES; break;
+		case OS_MB_RETRYCANCEL:def = (flags & OS_MB_DEFBUTTON2) ? OS_IDCANCEL : OS_IDRETRY; break;
+		default:               def = OS_IDOK;     break;
+		}
+		fprintf(stderr, "bgi: message box [%s] %s (-> %d)\n",
+			caption ? caption : "", text ? text : "", def);
+		return def;
+	}
 	return Win32_MessageBox(gWin32MainWnd, text, caption, (UINT)flags);
 }
 

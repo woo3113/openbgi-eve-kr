@@ -9,3 +9,20 @@ BGIError.txt
 internal/
 __pycache__/
 *.pyc
+
+# --- EVE burst error A Android port (never commit the game's data) ---------
+# the retail game data copied into the APK assets
+android-app/app/src/main/assets/EVE/
+# Android / Gradle build outputs
+android-app/.gradle/
+android-app/build/
+android-app/app/build/
+android-app/local.properties
+android-app/app/.cxx/
+# vendored third-party: place SDL2-2.30.9 sources here (see android-app/README_KR.md)
+android-app/app/jni/SDL/
+*.apk
+# local build binaries and tooling that are not part of the project
+/EVE_engine.exe
+/ghidraproj/
+*.dll

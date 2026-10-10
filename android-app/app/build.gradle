@@ -1,0 +1,68 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace "org.libsdl.app"
+    compileSdkVersion 34
+
+    defaultConfig {
+        applicationId "net.openbgi.eve"
+        minSdkVersion 21
+        targetSdkVersion 34
+        versionCode 1
+        versionName "1.0"
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_PLATFORM=android-21", "-DANDROID_STL=c++_static"
+                abiFilters 'arm64-v8a'
+            }
+        }
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    signingConfigs {
+        release {
+            // signed with the debug keystore so the release APK installs directly
+            storeFile file(System.getProperty("user.home") + "/.android/debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'jni/CMakeLists.txt'
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+
+    // the game archives and data ship in assets/EVE; store them uncompressed
+    // (they are already large/binary) so the build does not spend minutes
+    // deflating gigabytes and the APK keeps them as-is
+    androidResources {
+        noCompress += ['arc', 'gdb', 'hvl', 'bin', 'dat', 'sud', 'ttf', 'bm', 'bmp']
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+}

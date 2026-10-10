@@ -493,6 +493,65 @@ static int Opcode_Memcmp(Thread_t* t) // 63: a, b, n → eq
 	return 0;
 }
 
+/* "64" (array_fill): write `value` into each of `count` elements of
+ * `elemSize` bytes at `dst`. */
+static int Opcode_ArrayFill(Thread_t* t) // 64: dst, elemSize, count, value →
+{
+	int32_t value = (int32_t)Thread_Pop(t);
+	int32_t count = (int32_t)Thread_Pop(t);
+	int32_t elemSize = (int32_t)Thread_Pop(t);
+	uint8_t* dst = (uint8_t*)PopPtr(t);
+	int32_t i;
+	if(elemSize <= 0)
+		elemSize = 1;
+	for(i = 0; i < count; i++)
+	{
+		uint8_t* p = dst + (size_t)i * elemSize;
+		if(elemSize == 1)
+			*p = (uint8_t)value;
+		else if(elemSize == 2)
+			*(uint16_t*)p = (uint16_t)value;
+		else
+			*(int32_t*)p = value;
+	}
+	return 0;
+}
+
+/* "65" (array_find): the index of the first of the `count` elements of
+ * `elemSize` bytes at `src` equal to the value at `val`, -1 when there is
+ * none. */
+static int Opcode_ArrayFind(Thread_t* t) // 65: src, elemSize, count, val → index
+{
+	const uint8_t* val = (const uint8_t*)PopPtr(t);
+	int32_t count = (int32_t)Thread_Pop(t);
+	int32_t elemSize = (int32_t)Thread_Pop(t);
+	const uint8_t* src = (const uint8_t*)PopPtr(t);
+	int32_t i, value, found = -1;
+	if(elemSize == 1)
+		value = *(const uint8_t*)val;
+	else if(elemSize == 2)
+		value = *(const uint16_t*)val;
+	else
+		value = *(const int32_t*)val;
+	for(i = 0; i < count; i++)
+	{
+		int32_t v;
+		if(elemSize == 1)
+			v = src[i];
+		else if(elemSize == 2)
+			v = ((const uint16_t*)src)[i];
+		else
+			v = ((const int32_t*)src)[i];
+		if(v == value)
+		{
+			found = i;
+			break;
+		}
+	}
+	Thread_Push(t, (uint32_t)found);
+	return 0;
+}
+
 /* 1.529 on: the byte offset of the first occurrence of `pat` in `s`, or -1
  * when there is none.  A plain byte search (the CRT strstr), unlike the
  * Shift-JIS-aware search of "67". */
@@ -1138,11 +1197,86 @@ void Vm_FillTable(VmHandler_t* table, OpFamily_t fam, const OpEntry_t* list, siz
 /* the stand-in for an opcode the profile defines but no handler covers: a
  * script error naming the opcode bytes (two for a family instruction) and
  * the engine version */
+/* "BGI_STUB": bring-up aid for a build whose opcodes this reimplementation
+ * lacks yet.  With the variable set, an unknown opcode with a spec in
+ * kStubEffects (or an override in "BGI_STUB_<FAM>_<OP>" = "pops,pushes") is
+ * emulated - its operands popped, its results pushed as 0 - and execution
+ * continues instead of raising the error below.  Off unless BGI_STUB is set. */
+typedef struct
+{
+	uint8_t fam, op;
+	int pops, pushes;
+	uint32_t value; // the value each pushed result carries
+} StubEffect_t;
+
+static const StubEffect_t kStubEffects[] = {
+	{0x80, 0xcf, 3, 0, 0}, {0x81, 0xd0, 2, 0, 0}, {0x81, 0xd1, 1, 0, 0}, {0x81, 0xd2, 5, 0, 0},
+	{0x81, 0xd3, 2, 0, 0}, {0x81, 0xd4, 4, 1, 1}, {0x81, 0xd5, 3, 0, 0}, {0x90, 0xce, 5, 0, 0},
+	{0x91, 0x31, 2, 0, 0}, {0x91, 0xdb, 0, 1, 1}, {0x92, 0x9b, 2, 0, 0}, {0x92, 0xf5, 2, 0, 0},
+	{0x92, 0xf6, 2, 0, 0}, {0xa0, 0x1c, 2, 0, 0}, {0xb0, 0x06, 0, 0, 0}, {0xc0, 0x06, 4, 0, 0},
+};
+
+static int StubApply(Thread_t* t, uint8_t fam, uint8_t op)
+{
+	int pops = -1, pushes = -1, i;
+	uint32_t value = 0;
+	char name[32];
+	const char* e;
+	for(i = 0; i < (int)BGI_COUNTOF(kStubEffects); i++)
+	{
+		if(kStubEffects[i].fam == fam && kStubEffects[i].op == op)
+		{
+			pops = kStubEffects[i].pops;
+			pushes = kStubEffects[i].pushes;
+			value = kStubEffects[i].value;
+			break;
+		}
+	}
+	sprintf(name, "BGI_STUB_%02X_%02X", fam, op);
+	e = getenv(name);
+	if(e && sscanf(e, "%d,%d,%u", &pops, &pushes, &value) <= 0)
+		pops = -1;
+	if(pops < 0)
+		return 0;
+	if(pushes < 0)
+		pushes = 0;
+	fprintf(stderr, "[STUB] %s pops=%d pushes=%d value=%u\n", name, pops, pushes, value);
+	if(fam == 0x81 && (op == 0xd4 || op == 0xd5))
+	{
+		/* a serialiser call whose argument list carries a length output the
+		 * caller uses as a loop count (d5: buf, len, handle / d4: buf, len,
+		 * handle, value); an empty container reports zero so the caller's
+		 * enumeration loop does not run with a stale count */
+		int n = pops;
+		Thread_Pop(t);            // d5: handle, d4: value
+		if(op == 0xd4)
+			Thread_Pop(t);        // handle
+		{
+			void* lp = PopPtr(t); // the length output
+			if(lp)
+				*(uint32_t*)lp = 0;
+			n -= (op == 0xd4 ? 3 : 2);
+		}
+		while(n-- > 0)
+			Thread_Pop(t);
+	}
+	else
+	{
+		while(pops-- > 0)
+			Thread_Pop(t);
+	}
+	while(pushes-- > 0)
+		Thread_Push(t, value);
+	return 1;
+}
+
 int Opcode_NotImplemented(Thread_t* t)
 {
 	uint32_t ip = Thread_CurOpIP(t);
 	uint8_t op = t->code[ip];
 	char msg[0x100];
+	if(op >= 0x7f && op != 0xff && getenv("BGI_STUB") && StubApply(t, op, t->code[ip + 1]))
+		return 0;
 	if(op >= 0x7f && op != 0xff)
 		sprintf(msg, "Opcode $%02X%02X of engine version %s is not implemented yet", op, t->code[ip + 1], gEngine->name);
 	else
@@ -1343,6 +1477,8 @@ void Vm_OptableMainInit(void)
 		{0x61, Opcode_Memclr, GEN_FIRST, GEN_LAST},
 		{0x62, Opcode_Memset, GEN_FIRST, GEN_LAST},
 		{0x63, Opcode_Memcmp, GEN_FIRST, GEN_LAST},
+		{0x64, Opcode_ArrayFill, GEN_FIRST, GEN_LAST},
+		{0x65, Opcode_ArrayFind, GEN_FIRST, GEN_LAST},
 		{0x66, Opcode_Strstr, GEN_1_529, GEN_LAST},
 		{0x67, Opcode_Strreplace, GEN_FIRST, GEN_LAST},
 		{0x68, Opcode_Strlen, GEN_FIRST, GEN_LAST},

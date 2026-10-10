@@ -24,6 +24,8 @@
 #include "bgi/error.h"
 #include "bgi/sys.h"
 #include "bgi/msg.h"
+#include <stdio.h>
+#include "bgi/gfx/movieplayer.h"
 #include "bgi/panel.h"
 #include "bgi/gfx.h"
 #include "bgi/gfx/dispobj.h"
@@ -591,26 +593,39 @@ static uint32_t VideoTextureSlotCode(int bmp)
 
 static int Opcode_Gfx1_VideoTextureOpen(Thread_t* t) // 91 F0: v1, v2, name, v3 → 1 (the operands are ignored)
 {
-	Thread_Pop(t);
-	PopPtr(t);
-	Thread_Pop(t);
-	Thread_Pop(t);
+	int v3 = (int)Thread_Pop(t);
+	const char* name = (const char*)PopPtr(t);
+	int v2 = (int)Thread_Pop(t);
+	int v1 = (int)Thread_Pop(t);
+	fprintf(stderr, "[OP] 91F0 vt_open name='%s' v1=%d v2=%d v3=%d\n",
+		name ? name : "(null)", v1, v2, v3);
 	Thread_Push(t, 1);
 	return 0;
 }
 
-static int Opcode_Gfx1_VideoTextureState(Thread_t* t) // 91 F1: bmp, &out → code
+static int Opcode_Gfx1_VideoTextureState(Thread_t* t) // 91 F1: &out, bmp → code
 {
-	int32_t* out = (int32_t*)PopPtr(t);
 	int bmp = (int)Thread_Pop(t);
-	(void)out;
-	Thread_Push(t, VideoTextureSlotCode(bmp));
+	int32_t* out = (int32_t*)PopPtr(t);
+	uint32_t code = VideoTextureSlotCode(bmp);
+	if(out)
+		*out = Movie_TextureLength(bmp);
+	fprintf(stderr, "[OP] 91F1 vt_state bmp=%d -> %u len=%d\n", bmp, code, out ? (int)*out : 0);
+	Thread_Push(t, code);
 	return 0;
 }
 
-static int Opcode_Gfx1_VideoTextureSlotOp(Thread_t* t) // 91 F2 / F5 / F6: bmp → code
+static int Opcode_Gfx1_VideoTextureSlotOp(Thread_t* t) // 91 F5: bmp → code
 {
 	Thread_Push(t, VideoTextureSlotCode((int)Thread_Pop(t)));
+	return 0;
+}
+
+static int Opcode_Gfx1_VideoTextureRelease(Thread_t* t) // 91 F2 / F6: bmp → code
+{
+	int bmp = (int)Thread_Pop(t);
+	Movie_Release(bmp);
+	Thread_Push(t, VideoTextureSlotCode(bmp));
 	return 0;
 }
 
@@ -1374,11 +1389,11 @@ void Vm_Optable91Init(void)
 		{0x9F, Opcode_Gfx1_TextStripTags, GEN_1_529, GEN_LAST},
 		{0xF0, Opcode_Gfx1_VideoTextureOpen, GEN_1_69_451, GEN_LAST},
 		{0xF1, Opcode_Gfx1_VideoTextureState, GEN_1_69_451, GEN_LAST},
-		{0xF2, Opcode_Gfx1_VideoTextureSlotOp, GEN_1_69_451, GEN_LAST},
+		{0xF2, Opcode_Gfx1_VideoTextureRelease, GEN_1_69_451, GEN_LAST},
 		{0xF3, Opcode_Gfx1_VideoTextureControl1, GEN_1_69_472, GEN_LAST},
 		{0xF4, Opcode_Gfx1_VideoTextureControl4, GEN_1_69_472, GEN_LAST},
 		{0xF5, Opcode_Gfx1_VideoTextureSlotOp, GEN_1_69_472, GEN_LAST},
-		{0xF6, Opcode_Gfx1_VideoTextureSlotOp, GEN_1_69_472, GEN_LAST},
+		{0xF6, Opcode_Gfx1_VideoTextureRelease, GEN_1_69_472, GEN_LAST},
 		{0xF7, Opcode_Gfx1_VideoTextureFrame, GEN_1_494, GEN_LAST},
 		{0x40, Opcode_Gfx1_BgSetLayers, GEN_FIRST, GEN_LAST},
 		{0x41, Opcode_Gfx1_BglSelect, GEN_FIRST, GEN_LAST},

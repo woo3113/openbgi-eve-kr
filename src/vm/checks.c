@@ -75,9 +75,12 @@ void CheckBitmapNo(int32_t no, Thread_t* t) // 0.. 4095; 0.. 16383 from 1.69 bui
 		CHECK_ERROR(t, MSG_BAD_BITMAP_NO, no);
 }
 
-void CheckPriority(uint32_t prio, Thread_t* t) // 0.. 4095: a display priority
+void CheckPriority(uint32_t prio, Thread_t* t) // 0.. 65535: a display priority
 {
-	if(prio >= 0x1000)
+	/* 4095 is the usual 12-bit priority, but builds pass wider values as
+	 * "very high" markers (EVE burst error A's filter_set uses 0xfd00), so
+	 * the bound is the 16-bit field the original stores it in. */
+	if(prio >= 0x10000)
 		CHECK_ERROR(t, MSG_BAD_PRIORITY, (int)prio);
 }
 

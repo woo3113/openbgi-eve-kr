@@ -14,6 +14,7 @@
  */
 #include "bgi/gfx.h"
 #include "bgi/gfx/gfxmgr.h"
+#include "bgi/gfx/movieplayer.h"
 #include "bgi/display.h"
 #include "bgi/error.h"
 #include "bgi/msg.h"
@@ -28,6 +29,7 @@ static int32_t gMovieVolume; // IBasicAudio units, -10000 .. 0; applied to every
 int Movie_Stop(void)
 {
 	int had = gMovieGraph;
+	Movie_ArcStop(); // the "92 F0" movie_play_arc player, if it runs
 	if(!had)
 		return 0;
 	OS_MovieStop(); // IMediaControl::Stop when playing, hide and disown the video window, release all
@@ -66,7 +68,16 @@ int Movie_Play(int32_t* outLength, const char* path, int x, int y, int w, int h)
 			gMovieGraph = 1;
 			ThrowScriptError(MSG_MOVIE_AUDIO_NOT_RENDERED);
 			return 0;
-		default: return 0; // the original keeps a failed graph until the next stop; the OS layer releases it at once
+		default: // no DirectShow (Android): decode the file ourselves, in picture coordinates
+		{
+			int32_t len = Movie_PlayFile(path, x, y, w, h);
+			if(!Movie_ArcIsPlaying())
+				return 0;
+			if(outLength)
+				*outLength = len;
+			gMovieLoaded = 1;
+			return 1;
+		}
 	}
 	r.l = x;
 	r.t = y;
@@ -90,7 +101,7 @@ int Movie_Play(int32_t* outLength, const char* path, int x, int y, int w, int h)
 // "90 F2": a movie was started and the player still runs it
 int Movie_IsPlaying(void)
 {
-	return gMoviePlaying && OS_MovieIsRunning();
+	return (gMoviePlaying && OS_MovieIsRunning()) || Movie_ArcIsPlaying();
 }
 
 /* "90 F3": the volume, 0 .. 0x80, for the running movie and the ones to

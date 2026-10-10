@@ -28,7 +28,9 @@
 #include "bgi/gfx/bmpops.h"
 #include "bgi/gfx/bmpmgr.h"
 #include "bgi/gfx/text.h"
+#include "bgi/gfx/movieplayer.h"
 #include "bgi/file.h"
+#include <stdio.h>
 #include "bgi/codec.h"
 
 VmHandler_t vm_optable_92[256]; // the "92 xx" dispatch table, filled by Vm_Optable92Init
@@ -574,42 +576,42 @@ static int Opcode_Gfx2_AlphaToScreenGray(Thread_t* t)
 }
 
 // -------------------------------------------------------------------------
-// 92 F2, 92 F4 : video textures (1.494 on)
+// 92 F0, F2, F4, F5 : video textures (1.494 on)
 // -------------------------------------------------------------------------
 
 /* 92 F2 (1.494 on): name, arc, a, b, bmp → code
- * Attach a movie (DirectShow in the original) to a bitmap slot as a video
- * texture (see "91 F0 .. F7"): 0 ok, 1 the player could not be created,
- * 2 / 3 / 4 its other failures.  No video playback here: every attach
- * fails with 1, and the scripts (scrgrp3._bp of Tayutama2AS checks the
- * code) go without. */
+ * Attach a movie to a bitmap slot as a video texture: 0 ok, 1 the movie
+ * could not be opened.  The frames are decoded into the slot by
+ * Movie_Pump (src/gfx/movieplayer.c, pl_mpeg). */
 static int Opcode_Gfx2_VideoTextureAttach(Thread_t* t)
 {
-	int i;
-	for(i = 0; i < 5; i++)
-		Thread_Pop(t);
-	Thread_Push(t, 1);
+	int b = (int)Thread_Pop(t);
+	int a = (int)Thread_Pop(t);
+	const char* name = (const char*)PopPtr(t);
+	const char* arc = (const char*)PopPtr(t);
+	int bmp = (int)Thread_Pop(t);
+	int code;
+	fprintf(stderr, "[OP] 92F2 attach name='%s' arc='%s' a=%d b=%d bmp=%d\n",
+		name ? name : "(null)", arc ? arc : "(null)", a, b, bmp);
+	code = Movie_Attach(arc, name, bmp);
+	Thread_Push(t, (uint32_t)code);
 	return 0;
 }
 
 /* 92 F0 (1.494 on): arc, name, x, y, w, h → length
- * A movie played out of an archive (the original feeds DirectShow from
- * the entry through its own source filter) at (x, y) in a w x h area.
- * Without video playback the player answers 0 - as "90 F0" does here -
- * and the scripts move on; a non-positive size is still a script error. */
+ * A movie played out of an archive at (x, y) in a w x h area.  Plays it and
+ * answers its length in ms (0 when it could not be played); a non-positive
+ * size is still a script error. */
 static int Opcode_Gfx2_MoviePlayArc(Thread_t* t)
 {
 	int h = (int)Thread_Pop(t), w = (int)Thread_Pop(t);
 	int y = (int)Thread_Pop(t), x = (int)Thread_Pop(t);
 	const char* name = (const char*)PopPtr(t);
 	const char* arc = (const char*)PopPtr(t);
-	int32_t length = 0;
-	(void)x;
-	(void)y;
-	(void)name;
-	(void)arc;
+	int32_t length;
 	if(w <= 0 || h <= 0)
 		GFX_ERROR(t, MSG_BAD_MOVIE_SIZE, w, h);
+	length = Movie_PlayArc(arc, name, x, y, w, h);
 	Thread_Push(t, (uint32_t)length);
 	return 0;
 }
@@ -633,12 +635,29 @@ static int Opcode_Gfx2_SeqLoad(Thread_t* t)
 	return 2;
 }
 
-// 92 F4 (1.494 on): bmp, v → code; control the slot's video texture (always 1: the slot has none)
+/* 92 F4 (1.494 on): bmp, v → code
+ * Control the slot's video texture: v 0 reports 1 once it has ended (0 while
+ * it plays), 1 plays/resumes, 2 pauses, 3 stops. */
 static int Opcode_Gfx2_VideoTextureControl(Thread_t* t)
 {
-	Thread_Pop(t);
-	Thread_Pop(t);
-	Thread_Push(t, 1);
+	int v = (int)Thread_Pop(t);
+	int bmp = (int)Thread_Pop(t);
+	fprintf(stderr, "[OP] 92F4 control bmp=%d v=%d\n", bmp, v);
+	Thread_Push(t, (uint32_t)Movie_Control(bmp, v));
+	return 0;
+}
+
+/* 92 F5 (1.494 on): out, bmp →
+ * The video texture's state (the media time in ms, -1 when the slot has no
+ * movie) into *out; moviemngr._bp polls it to tell frame updates apart. */
+static int Opcode_Gfx2_VideoTextureStatus(Thread_t* t)
+{
+	int bmp = (int)Thread_Pop(t);
+	int32_t* out = (int32_t*)PopPtr(t);
+	int32_t v = -1;
+	Movie_Status(bmp, &v);
+	if(out)
+		*out = v;
 	return 0;
 }
 
@@ -662,6 +681,7 @@ void Vm_Optable92Init(void)
 		{0xF1, Opcode_Gfx2_SeqLoad, GEN_1_547, GEN_LAST},
 		{0xF2, Opcode_Gfx2_VideoTextureAttach, GEN_1_494, GEN_LAST},
 		{0xF4, Opcode_Gfx2_VideoTextureControl, GEN_1_547, GEN_LAST},
+		{0xF5, Opcode_Gfx2_VideoTextureStatus, GEN_1_573, GEN_LAST},
 		{0x1A, Opcode_Gfx2_AlphaToScreenGray, GEN_1_494, GEN_LAST},
 		{0x37, Opcode_Gfx2_ObjSetFixedOffset2, GEN_1_69_472, GEN_1_69_472}, // the other builds have it at "91 36" from 1.494
 		{0x00, Opcode_Gfx2_DefineRipple, GEN_FIRST, GEN_LAST},

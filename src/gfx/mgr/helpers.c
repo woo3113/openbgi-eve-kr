@@ -58,13 +58,13 @@ int Mgr_DeleteFromTable(Gfx_t* g, DispObj_t** table, DispObj_t* o, uint32_t h, i
 
 	if(!o)
 		return 0;
-	if(IsVisible(o))
-	{
-		if(invalidateAll)
-			Compositor_InvalidateAll(g->comp);
-		else
-			Invalidate(o);
-	}
+	if(invalidateAll)
+		Compositor_InvalidateAll(g->comp);
+	else
+		/* Repaint the footprint even when the object is not visible now: a
+		 * window or sprite that was faded out before this delete did paint
+		 * the screen, so leaving it untouched would keep its stale pixels. */
+		Invalidate(o);
 	Compositor_Remove(g->comp, o);
 	idx = HANDLE_INDEX(h);
 	if(table[idx])

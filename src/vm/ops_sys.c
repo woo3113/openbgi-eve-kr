@@ -362,7 +362,11 @@ static int Opcode_Sys_Galloc(Thread_t* t) // 80 20: size → p
 static int Opcode_Sys_Gfree(Thread_t* t) // 80 21: p → ok
 {
 	uint32_t p = Thread_Pop(t);
-	int ok = GFree(p);
+	int ok;
+	/* A null block is not an error: scripts that free a buffer they may not
+	 * have allocated (EVE burst error A's userdata._bp does) pass 0, and the
+	 * original tolerates it. */
+	ok = p == 0 ? 1 : GFree(p);
 	if(!ok)
 		SYS_ERROR(t, MSG_GFREE_BAD_ADDRESS, p);
 	Thread_Push(t, (uint32_t)ok);
@@ -1299,14 +1303,22 @@ static int Opcode_Sys_GdbLoad(Thread_t* t) // 80 80 (.. 1.69 build 444): → cod
  * else the default centred position */
 static int Opcode_Sys_GdbLoad_472(Thread_t* t) // 80 80 (1.69 build 472 on): → x, y, code
 {
-	uint32_t r = GlobalDB_Load();
+	uint32_t r;
 	int x, y;
+	fprintf(stderr, "[DBG] gdb_load enter\n");
+	r = GlobalDB_Load();
+	fprintf(stderr, "[DBG] gdb_load GlobalDB_Load r=%08x\n", r);
 	if(r == 0x80000002u)
 		r = 2;
 	else if(r == 0x80000001u)
 		r = 1;
+	fprintf(stderr, "[DBG] gdb_load SavedWindowPos_Load...\n");
 	if(!SavedWindowPos_Load(&x, &y))
+	{
+		fprintf(stderr, "[DBG] gdb_load Display_DefaultWindowPos...\n");
 		Display_DefaultWindowPos(&x, &y);
+	}
+	fprintf(stderr, "[DBG] gdb_load done x=%d y=%d r=%u\n", x, y, r);
 	Thread_Push(t, (uint32_t)x);
 	Thread_Push(t, (uint32_t)y);
 	Thread_Push(t, r);

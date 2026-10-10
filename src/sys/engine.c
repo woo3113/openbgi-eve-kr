@@ -27,6 +27,7 @@
 #include "bgi/sound.h"
 #include "bgi/gfx.h"
 #include "bgi/gfx/bmseq.h"
+#include "bgi/gfx/movieplayer.h"
 #include "bgi/panel.h"
 #include "bgi/install.h"
 #include "bgi/error.h"
@@ -215,6 +216,7 @@ void Engine_Shutdown(void)
 	Timer_End();
 	Idle_Shutdown();
 	Movie_Stop();
+	Movie_Shutdown(); // the pl_mpeg video textures ("92 F2" .. )
 	BmSeq_FreeAll(); // the bitmap sequences of 1.69 build 472 on
 	if(gFullscreen)
 		OS_DisplayRestore();
@@ -537,7 +539,7 @@ int Engine_Main(const char* cmdLine)
 			return 0;
 		}
 	}
-#if !defined(BGI_WASM) // no CPUID on a page: the processor checks are skipped there
+#if !defined(BGI_WASM) && (defined(__i386__) || defined(__x86_64__)) // the processor checks are x86-only (no CPUID on a page or on ARM)
 	if(!Cpu_Detect())
 	{
 		OS_MessageBox(MSG_CPU_UNSUPPORTED, "Error!!", OS_MB_ICONHAND | OS_MB_SYSTEMMODAL);

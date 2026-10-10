@@ -15,6 +15,7 @@
  * linearly.
  */
 #include "wm_internal.h"
+#include "bgi/gfx/movieplayer.h"
 
 // ---- voices ------------------------------------------------------------------------------------
 
@@ -277,6 +278,7 @@ void Mixer_Fill(void* user, int16_t* out, int frames)
 			Voice_Mix(&gBgmVoices[i], acc, n);
 		for(i = 0; i < WM_SE_SLOTS; i++)
 			Voice_Mix(&gSeVoices[i], acc, n);
+		Movie_MixAudio(acc, n); // the MPEG-1 movie audio, when one plays
 		for(i = 0; i < n * 2; i++)
 		{
 			int32_t v = acc[i];
