@@ -18,6 +18,8 @@
 #include "android_internal.h"
 #include <SDL.h>
 #include <android/log.h>
+#include "bgi/engine.h"
+#include "bgi/sysobj/database.h"
 
 #define ALOG(...) __android_log_print(ANDROID_LOG_INFO, "BGI", __VA_ARGS__)
 
@@ -42,6 +44,17 @@ static int gImeOpen;
 
 static int gOutW, gOutH;                               // the renderer output (window drawable) size
 static int gPresentX, gPresentY, gPresentW, gPresentH; // the picture's rect within that output
+
+/* Persist the game's global database, which holds the options (the system
+ * area).  The game itself only writes it on its quit path ("sys.gdb_save"
+ * in sysmsg._bp), which Android rarely reaches; the back end calls this when
+ * the app leaves the foreground instead.  Runs on the game's thread. */
+void OS_Android_SaveConfig(void)
+{
+	if(!gEngineUp)
+		return;
+	GlobalDB_Save();
+}
 
 // window pixels <-> picture pixels (the picture is fit, with possible bars)
 static int WinToPicX(int x) { return gPresentW ? (x - gPresentX) * gPixW / gPresentW : x; }
@@ -691,6 +704,15 @@ int OS_PumpMessages(void)
 			if(gHandlers.close_request)
 				gHandlers.close_request();
 			break;
+		/* Android apps rarely go through the game's own quit path (where the
+		 * engine writes the global database with the options), so persist it
+		 * here when the app leaves the foreground.  Runs on the game's own
+		 * thread: the event pump is part of the engine's frame loop. */
+		case SDL_APP_WILLENTERBACKGROUND:
+		case SDL_APP_DIDENTERBACKGROUND:
+		case SDL_APP_TERMINATING:
+			OS_Android_SaveConfig();
+			break;
 		case SDL_WINDOWEVENT:
 			switch(e.window.event)
 			{
@@ -706,6 +728,7 @@ int OS_PumpMessages(void)
 				break;
 			case SDL_WINDOWEVENT_MINIMIZED:
 				gMinimized = 1;
+				OS_Android_SaveConfig();
 				if(gHandlers.sized)
 					gHandlers.sized(1);
 				break;

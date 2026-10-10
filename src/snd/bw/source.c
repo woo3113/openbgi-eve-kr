@@ -10,6 +10,7 @@
  * decode into a memory source at open and read the PCM back from it.
  */
 #include "bw_internal.h"
+#include <stdio.h>
 
 // a loose file opened for shared reading; NULL when it cannot be opened
 WmSource_t* WmSource_OpenFile(const char* path)
@@ -46,7 +47,10 @@ WmSource_t* WmSource_OpenArc(const char* arcPath, const char* name)
 	uint32_t off = 0, size = 0;
 
 	if(OS_FileAttrs(arcPath) == OS_INVALID_ATTRS)
+	{
+		fprintf(stderr, "[WMARC] '%s' in '%s' : ATTRS invalid\n", name ? name : "", arcPath ? arcPath : "");
 		return NULL;
+	}
 	f = OS_FileOpenRead(arcPath);
 	if(!f)
 		return NULL;
@@ -96,6 +100,7 @@ WmSource_t* WmSource_OpenArc(const char* arcPath, const char* name)
 	}
 	if(!found)
 	{
+		fprintf(stderr, "[WMARC] '%s' in '%s' : NOT FOUND (count=%u)\n", name ? name : "", arcPath ? arcPath : "", count);
 		OS_FileClose(f);
 		return NULL;
 	}
@@ -105,6 +110,8 @@ WmSource_t* WmSource_OpenArc(const char* arcPath, const char* name)
 	s->file = f;
 	s->base = 16 + count * recSize + off; // entry offsets count from the end of the index
 	s->size = size;
+	fprintf(stderr, "[WMARC] '%s' in '%s' : found off=%u size=%u base=%u\n",
+		name ? name : "", arcPath ? arcPath : "", off, size, s->base);
 	OS_FileSeek(f, s->base);
 	return s;
 }

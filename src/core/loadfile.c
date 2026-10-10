@@ -20,6 +20,7 @@
 #include "bgi/file.h"
 #include "bgi/codec.h"
 #include "bgi/error.h"
+#include <stdio.h>
 #include "bgi/vm.h"
 #include "bgi/sys.h"
 #include "bgi/strutil.h"
@@ -93,6 +94,7 @@ uint32_t LoadFile(void* buf, const char* arc, const char* name)
 		n = Arc_Read(buf, path, name);
 		while(n == ARC_ERR_OPEN || n == ARC_ERR_NOT_FOUND)
 		{
+			fprintf(stderr, "[LOAD] FAIL arc='%s' name='%s' code=0x%08x\n", arc, name ? name : "", n);
 			if(DriveReady(gAltDir))
 			{
 				PathJoin(path, gAltDir, arc);

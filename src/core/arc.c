@@ -30,6 +30,7 @@
  * lower-cased so that matching is case-insensitive.
  */
 #include "bgi/file.h"
+#include <stdio.h>
 #include "bgi/strutil.h"
 #include "bgi/os.h"
 
@@ -480,6 +481,10 @@ static int FileSetList_ArcNameFor(FileSet_t* s, char* dst, const char* name)
 			return 1;
 		}
 	}
+	fprintf(stderr, "[ARCLIST] '%s' MISS in '%s' (dir='%s', members=%d)\n",
+		name ? name : "", s->name, s->dir, s->listCount);
+	for(i = 0; i < s->listCount; i++)
+		fprintf(stderr, "[ARCLIST]   member %d: %s\n", i, s->list[i]);
 	return 0;
 }
 
@@ -503,6 +508,17 @@ static uint32_t FileSetList_ReadRange(FileSet_t* s, void* dst, const char* name,
 		r = ArcMgr_ReadRange(s->inner, dst, path, name, off, size);
 		if(r < 0x80000000u || r == ARC_ERR_RANGE || r == ARC_ERR_OFFSET)
 			return r;
+	}
+	if(r == ARC_ERR_OPEN || r == ARC_ERR_NOT_FOUND)
+	{
+		fprintf(stderr, "[ARCLIST] READ '%s' MISS in '%s' (dir='%s', last=0x%08x)\n",
+			name ? name : "", s->name, s->dir, r);
+		for(i = 0; i < s->listCount; i++)
+		{
+			sprintf(path, "%s\\%s", s->dir, s->list[i]);
+			fprintf(stderr, "[ARCLIST]   member %d %s : exists=%d size=0x%08x\n", i, s->list[i],
+				ArcMgr_Exists(s->inner, path, name), ArcMgr_SizeOf(s->inner, path, name));
+		}
 	}
 	return r;
 }
@@ -536,10 +552,16 @@ int Sys_RegisterFilelist(const char* name, char** list)
 {
 	FileSet_t* s = FileSetList_New();
 	int ok = 0;
+	int n = 0, i;
 	if(FileSetList_SetName(s, name) && FileSetList_SetList(s, list))
 		ok = ArcMgr_Register(gArcMgr, s);
 	if(!ok)
 		s->vt->destroy(s);
+	while(list && list[n])
+		n++;
+	fprintf(stderr, "[ARCLIST] register '%s' ok=%d members=%d\n", name ? name : "", ok, n);
+	for(i = 0; list && list[i]; i++)
+		fprintf(stderr, "[ARCLIST]   %s\n", list[i]);
 	return ok;
 }
 
