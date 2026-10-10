@@ -8,6 +8,7 @@
  */
 #include "bgi/gfx/bmpmgr.h"
 #include <math.h>
+#include "bgi/gfx/movieplayer.h"
 #include "bgi/strutil.h"
 
 BmpMgr_t* gBmpMgr;
@@ -92,6 +93,10 @@ int BmpMgr_Create(BmpMgr_t* m, int no, int w, int h, int mode)
 	uint8_t* pixels;
 	if(no < 0 || no >= m->count)
 		return 0;
+	/* the game is (re)creating this slot: a video texture attached to it is
+	 * stale now, so drop it (our player decodes into the game's bitmap, while
+	 * the original's DirectShow video never shares it) */
+	Movie_Release(no);
 	// a slot that is re-created keeps its generation only with "90 0B"
 	gen = BmpMgr_Generation(m, no);
 	if(gen == -1 || !m->keepGen)

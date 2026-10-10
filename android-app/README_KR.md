@@ -3,6 +3,8 @@
 OpenBGI(EVE burst error A의 원작 엔진 "BGI" 재구현)를 **Android로 이식**한 빌드입니다.
 게임패드 조작, **동영상 재생**, 소프트웨어 커서 자동 숨김, **게임 데이터 포함 자립형 APK**를 지원합니다.
 
+- 앱 이름(런처): **이브버스트에러** / 패키지: `net.openbgi.eve` / 실행 액티비티: `net.openbgi.eve.MainActivity`
+
 ## 특징
 
 - **게임패드 조작** (최종 매핑)
